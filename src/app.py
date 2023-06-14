@@ -23,7 +23,7 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 
 # ---------------------------------------------------
-# read data
+# reading the data
 data = pd.read_csv("../data/SAMPLE_module_data.csv")
 
 # dtype conversion
@@ -365,41 +365,249 @@ def item_completion_barplot(df):
 
 # -----------------------------------------------------------------------
 # Define the layout of the dashboard
+
+
+# Define the style for the tabs
+tab_style = {
+    "height": "30px",
+    "padding": "8px",
+}
+
+# Define the style for the selected tab
+selected_tab_style = {
+    "height": "30px",
+    "padding": "3px",
+    "borderTop": "2px solid #f5f5f5",
+    "borderBottom": "2px solid #f5f5f5",
+    "backgroundColor": "#119DFF",
+    "color": "white",
+}
+
+# dropdpown options
+module_options = [
+    {"label": "Course Introduction", "value": "Course Introduction"},
+    {"label": "How to Design Data", "value": "How to Design Data"},
+    {"label": "How to Design Functions", "value": "How to Design Functions"},
+    {"label": "Intro to Object Orientation", "value": "Intro to Object Orientation"},
+]
+
 # replace the figure dictionary with the function call for plotly figure plotting
-app.layout = dbc.Container(
-    fluid=True,
+# sidebar = html.Div(
+#     [
+#         dbc.Row(
+#             [
+#                 html.P('Filters')
+#                 ],
+#             style={"height": "5vh"}
+#             ),
+#         dbc.Row(
+#             [
+#                 html.P('Select the Module')
+#                 ],
+#             style={"height": "50vh"}
+#             ),
+#         dbc.Row(
+#             [
+#                 html.P('Select the Student')
+#                 ],
+#             style={"height": "45vh"}
+#             )
+#         ]
+#     )
+
+# content = html.Div(
+#     [
+#         dbc.Row(
+#             [
+#                 dbc.Col(
+#                      dcc.Graph(id="plot1", figure=module_completion_barplot(data)),
+#                      width={"size": 5, "offset": 1, "order": 1},
+#                      lg={"size": 5, "offset": 1, "order": 1},
+#                  ),
+#                 dbc.Col(
+#                      dcc.Graph(id="plot2", figure=module_completion_lineplot(data)),
+#                      width={"size": 5, "offset": 1, "order": 2},
+#                      lg={"size": 5, "offset": 1, "order": 1},
+#                  )
+#             ],
+#             style={"height": "50vh"}),
+#         dbc.Row(
+#             [
+#                 dbc.Col(
+#                      dcc.Graph(id="plot3", figure=item_completion_barplot(data)),
+#                      width={"size": 6, "offset": 3, "order": 1},
+#                      lg={"size": 8, "offset": 2, "order": 1},
+#                  )
+#             ],
+#             style={"height": "50vh"}
+#             )
+#         ]
+#     )
+
+
+app.layout = html.Div(
     children=[
-        html.H1(
-            "Module Progress Dashboard",
-            className="display-4",
-        ),
-        dbc.Row(
-            [
-                dbc.Col(
-                    dcc.Graph(id="plot1", figure=module_completion_barplot(data)),
-                    width={"size": 5, "offset": 1, "order": 1},
-                    lg={"size": 5, "offset": 1, "order": 1},
-                ),
-                dbc.Col(
-                    dcc.Graph(id="plot2", figure=module_completion_lineplot(data)),
-                    width={"size": 5, "offset": 1, "order": 2},
-                    lg={"size": 5, "offset": 1, "order": 1},
+        html.Div(
+            children=[
+                html.H2(
+                    "Module Progress Demo Dashboard",
+                    style={
+                        "color": "white",
+                        "background-color": "black",
+                        "padding": "5px",
+                    },
                 ),
             ],
-            className="mt-4",
+            style={"padding": "0.05px"},
         ),
-        dbc.Row(
-            [
-                dbc.Col(
-                    dcc.Graph(id="plot3", figure=item_completion_barplot(data)),
-                    width={"size": 6, "offset": 3, "order": 1},
-                    lg={"size": 8, "offset": 2, "order": 1},
+        html.Div(
+            children=[
+                dcc.Tabs(
+                    id="tabs",
+                    value="Modules",
+                    children=[
+                        dcc.Tab(
+                            label="About",
+                            style=tab_style,
+                            selected_style=selected_tab_style,
+                            children=[
+                                html.H1("About"),
+                                html.P(
+                                    """This is a Sample Dashboard created using Dash and Plotly in Python"""
+                                ),
+                            ],
+                        ),
+                        dcc.Tab(
+                            label="Module Details",
+                            value="Module Details",
+                            style=tab_style,
+                            selected_style=selected_tab_style,
+                            children=[
+                                html.Div(
+                                    children=[
+                                        html.Label(
+                                            "Select a module to view the student progression details ",
+                                            style={
+                                                "font-weight": "bold",
+                                                "margin-right": "10px",
+                                            },
+                                        ),
+                                        dcc.Dropdown(
+                                            id="module-dropdown",
+                                            options=module_options,
+                                            value=module_options[0]["value"],
+                                            style={"width": "150px", "fontsize": "1px"},
+                                        ),
+                                    ],
+                                    style={
+                                        "display": "flex",
+                                        "align-items": "center",
+                                        "margin-top": "10px",
+                                        "margin-bottom": "10px",
+                                    },
+                                ),
+                                html.Div(
+                                    children=[
+                                        dcc.Graph(
+                                            id="plot1",
+                                            figure=module_completion_barplot(data),
+                                            style={
+                                                "width": "50%",
+                                                "height": "500px",
+                                                "display": "inline-block",
+                                                "border": "2px solid #ccc",
+                                                "border-radius": "5px",
+                                                "padding": "10px",
+                                            },
+                                        ),
+                                        dcc.Graph(
+                                            id="plot3",
+                                            figure=item_completion_barplot(data),
+                                            style={
+                                                "width": "50%",
+                                                "height": "500px",
+                                                "display": "inline-block",
+                                                "border": "2px solid #ccc",
+                                                "border-radius": "5px",
+                                                "padding": "10px",
+                                            },
+                                        ),
+                                        # dcc.Graph(id='ratio-graph', style={'width': '50%', 'display': 'inline-block'})
+                                    ]
+                                ),
+                            ],
+                        ),
+                        dcc.Tab(
+                            label="Progress Lineplot",
+                            style=tab_style,
+                            selected_style=selected_tab_style,
+                            children=[
+                                html.H1("Date  filters to be added"),
+                                dcc.Graph(
+                                    id="plot2", figure=module_completion_lineplot(data)
+                                ),
+                            ],
+                        ),
+                    ],
                 )
             ],
-            className="mt-4",
+            style={
+                "padding": "20px",
+                "background-color": "#F8F8FF",
+                "fontSize": "16px",
+            },
         ),
-    ],
+    ]
 )
+
+
+# app.layout = dbc.Container(
+#     [
+#         dbc.Row(
+#             [
+#                 dbc.Col(sidebar, width=3, className='bg-light'),
+#                 dbc.Col(content, width=9)
+#                 ]
+#             ),
+#         ],
+#     fluid=True
+#     )
+
+
+# app.layout = dbc.Container(
+#     fluid=True,
+#     children=[
+#         html.H1(
+#             "Module Progress Dashboard",
+#             className="display-4",
+#         ),
+#         dbc.Row(
+#             [
+#                 dbc.Col(
+#                     dcc.Graph(id="plot1", figure=module_completion_barplot(data)),
+#                     width={"size": 5, "offset": 1, "order": 1},
+#                     lg={"size": 5, "offset": 1, "order": 1},
+#                 ),
+#                 dbc.Col(
+#                     dcc.Graph(id="plot2", figure=module_completion_lineplot(data)),
+#                     width={"size": 5, "offset": 1, "order": 2},
+#                     lg={"size": 5, "offset": 1, "order": 1},
+#                 ),
+#             ],
+#             className="mt-4",
+#         ),
+#         dbc.Row(
+#             [
+#                 dbc.Col(
+#                     dcc.Graph(id="plot3", figure=item_completion_barplot(data)),
+#                     width={"size": 6, "offset": 3, "order": 1},
+#                     lg={"size": 8, "offset": 2, "order": 1},
+#                 )
+#             ],
+#             className="mt-4",
+#         ),
+#     ],
+# )
 
 if __name__ == "__main__":
     app.run_server(debug=True)
