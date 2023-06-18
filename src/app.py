@@ -1,6 +1,9 @@
 # imports
 from dash import dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
+import dash
+from dash.dependencies import Input, Output, State
+import re
 
 import pandas as pd
 import numpy as np
@@ -53,14 +56,27 @@ for col in categorical_cols:
 # -----------------------------------------------------------
 # global variables
 # CHANGE TO MODULE ID INSTEAD OF NAME
-modules = list(data.module_name.unique())
+modules = list(data.module_id.unique())
 total_students = data.student_id.unique().size
 
-# Creating a dictionary of items per module
-item_dict = defaultdict()
+# Make a dictionary of module id and module names
+module_dict, item_dict, course_dict, student_dict = (defaultdict(str) for _ in range(4))
 
-for module in modules:
-    item_dict[module] = list(data[data.module_name == module].items_title.unique())
+for _, row in data.iterrows():
+    module_dict[str(row["module_id"])] = re.sub(
+        r"^Module\s+\d+:\s+", "", row["module_name"]
+    )
+    item_dict[str(row["items_module_id"])] = row["items_title"]
+    course_dict[str(row["course_id"])] = row["course_name"]
+    student_dict[str(row["student_id"])] = row["student_name"]
+
+# Creating a dictionary of items per module
+items_in_module = defaultdict(str)
+
+for module in module_dict.keys():
+    items_in_module[str(module)] = list(
+        data[data.module_id.astype(str) == module].items_title.unique()
+    )
 
 
 # -------------------------------------------------------------
@@ -76,8 +92,14 @@ def get_completed_percentage(df, module, state="completed"):
     Returns:
     ---------
     """
-    # CHANGE TO MODULE ID INSTEAD OF NAME
-    df_module = df[df.module_name == module]
+    df_module = df[df.module_id.astype(str) == module]
+
+    # df is a subset dataframe that contains a specific module as selected in the dropdown
+    # Thus when other modules are iterated the size of the dataframe will be 0
+
+    if df_module.shape[0] == 0:
+        return 0
+
     total_module_students = df_module.student_id.unique().size
     percentage = (
         df_module[df_module.state == state].student_id.unique().size
@@ -99,8 +121,10 @@ def module_completion_barplot(df):
 
     """
     result = {}
+    modules = list(df.module_id.unique().astype(str))
+
     for module in modules:
-        result[str(module)] = [
+        result[module_dict.get(module)] = [
             round(get_completed_percentage(df, module, "unlocked") * 100, 1),
             round(get_completed_percentage(df, module, "started") * 100, 1),
             round(get_completed_percentage(df, module, "completed") * 100, 1),
@@ -164,7 +188,7 @@ def get_completed_percentage_date(df, module, date):
     datetime_date = datetime.datetime.combine(date, datetime.datetime.min.time())
 
     # CHANGE TO MODULE ID INSTEAD OF NAME
-    df_module = df[df.module_name == module]
+    df_module = df[df.module_id.astype(str) == module]
     total_module_students = df_module.student_id.unique().size
 
     # If there is not a single row with completion date then we get a datetime error since blanks are not compared to date
@@ -202,8 +226,10 @@ def module_completion_lineplot(df):
 
     result_time = pd.DataFrame(columns=["Date", "Module", "Percentage Completion"])
 
-    for module in modules:
-        timestamps = df[df.module_name == module]["completed_at"].dt.date.unique()
+    for module in module_dict.keys():
+        timestamps = df[df.module_id.astype(str) == module][
+            "completed_at"
+        ].dt.date.unique()
         timestamps = [
             x for x in timestamps if type(x) != pd._libs.tslibs.nattype.NaTType
         ]
@@ -212,7 +238,7 @@ def module_completion_lineplot(df):
             value = round(get_completed_percentage_date(df, module, date) * 100, 1)
 
             new_df = pd.DataFrame(
-                [[date, module, value]],
+                [[date, module_dict.get(module), value]],
                 columns=["Date", "Module", "Percentage Completion"],
             )
 
@@ -282,13 +308,15 @@ def item_completion_barplot(df):
     )
 
     # Computing the percentage completion in each item of a module
+    modules = list(df.module_id.unique().astype(str))
+
     for module in modules:
         # number of student id related to Module
         # CHANGE THE NAME TO ID
-        df_module = df[(df.module_name == module)]
+        df_module = df[(df.module_id.astype(str) == module)]
 
-        for i, item in enumerate(item_dict.get(module)):
-            df_module_item = df_module[df_module.items_title == item]
+        for i, item in enumerate(items_in_module.get(module)):
+            df_module_item = df_module[df_module.items_title.astype(str) == item]
 
             item_percent_completion = round(
                 (
@@ -303,7 +331,7 @@ def item_completion_barplot(df):
                 0,
             )
             new_df = pd.DataFrame(
-                [[module, item, item_percent_completion, i + 1]],
+                [[module_dict.get(module), item, item_percent_completion, i + 1]],
                 columns=[
                     "Module",
                     "Item",
@@ -342,8 +370,8 @@ def item_completion_barplot(df):
                 orientation="h",
                 name=module,
                 marker=dict(opacity=0.8),
-                text=group["Item Position"][::-1],
-                hovertemplate="Item Position: %{text}<br>Item Title: %{y}<br>Completion:%{x}%<extra></extra>",
+                text=[],
+                hovertemplate="Item Title: %{y}<br>Completion:%{x}%<extra></extra>",
             ),
             row=i + 1,
             col=1,
@@ -351,7 +379,7 @@ def item_completion_barplot(df):
 
     # Update the layout of the figure
     fig_3.update_layout(
-        height=150 * len(grouped_df),
+        height=300 * len(grouped_df),
         title="Percentage Completion by Item for Each Module",
         xaxis_title="Percentage Completion",
         yaxis_title="Item",
@@ -384,65 +412,47 @@ selected_tab_style = {
 }
 
 # dropdpown options
+
 module_options = [
-    {"label": "Course Introduction", "value": "Course Introduction"},
-    {"label": "How to Design Data", "value": "How to Design Data"},
-    {"label": "How to Design Functions", "value": "How to Design Functions"},
-    {"label": "Intro to Object Orientation", "value": "Intro to Object Orientation"},
+    {"label": module_name, "value": module_id}
+    for module_id, module_name in module_dict.items()
 ]
+module_options.extend([{"label": "All", "value": "All"}])
 
-# replace the figure dictionary with the function call for plotly figure plotting
-# sidebar = html.Div(
-#     [
-#         dbc.Row(
-#             [
-#                 html.P('Filters')
-#                 ],
-#             style={"height": "5vh"}
-#             ),
-#         dbc.Row(
-#             [
-#                 html.P('Select the Module')
-#                 ],
-#             style={"height": "50vh"}
-#             ),
-#         dbc.Row(
-#             [
-#                 html.P('Select the Student')
-#                 ],
-#             style={"height": "45vh"}
-#             )
-#         ]
-#     )
 
-# content = html.Div(
-#     [
-#         dbc.Row(
-#             [
-#                 dbc.Col(
-#                      dcc.Graph(id="plot1", figure=module_completion_barplot(data)),
-#                      width={"size": 5, "offset": 1, "order": 1},
-#                      lg={"size": 5, "offset": 1, "order": 1},
-#                  ),
-#                 dbc.Col(
-#                      dcc.Graph(id="plot2", figure=module_completion_lineplot(data)),
-#                      width={"size": 5, "offset": 1, "order": 2},
-#                      lg={"size": 5, "offset": 1, "order": 1},
-#                  )
-#             ],
-#             style={"height": "50vh"}),
-#         dbc.Row(
-#             [
-#                 dbc.Col(
-#                      dcc.Graph(id="plot3", figure=item_completion_barplot(data)),
-#                      width={"size": 6, "offset": 3, "order": 1},
-#                      lg={"size": 8, "offset": 2, "order": 1},
-#                  )
-#             ],
-#             style={"height": "50vh"}
-#             )
-#         ]
-#     )
+# ----------------------------
+# Define callbacks
+
+
+@app.callback(
+    dash.dependencies.Output("plot1", "figure"),
+    [dash.dependencies.Input("module-dropdown", "value")],
+)
+def update_module(val):
+    subset_data = data.copy()
+    # if a specific module is selected then filter the dataframe by that alone, else select all.
+    if val != "All":
+        subset_data = data[data.module_id.astype(str) == val]
+
+    fig = module_completion_barplot(subset_data)
+    return fig
+
+
+@app.callback(
+    dash.dependencies.Output("plot3", "figure"),
+    [dash.dependencies.Input("module-dropdown", "value")],
+)
+def update_items(val):
+    subset_data = data.copy()
+    # if a specific module is selected then filter the items that belong to that module alone, else seletc all
+    if val != "All":
+        subset_data = data[data.module_id.astype(str) == val]
+
+    fig = item_completion_barplot(subset_data)
+    return fig
+
+
+# ----------------------------
 
 
 app.layout = html.Div(
@@ -495,8 +505,8 @@ app.layout = html.Div(
                                         dcc.Dropdown(
                                             id="module-dropdown",
                                             options=module_options,
-                                            value=module_options[0]["value"],
-                                            style={"width": "150px", "fontsize": "1px"},
+                                            value=module_options[-1]["value"],
+                                            style={"width": "300px", "fontsize": "1px"},
                                         ),
                                     ],
                                     style={
@@ -510,7 +520,6 @@ app.layout = html.Div(
                                     children=[
                                         dcc.Graph(
                                             id="plot1",
-                                            figure=module_completion_barplot(data),
                                             style={
                                                 "width": "50%",
                                                 "height": "500px",
