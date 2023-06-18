@@ -54,7 +54,7 @@ for col in categorical_cols:
 
 
 # -----------------------------------------------------------
-# global variables
+# Global variables
 # CHANGE TO MODULE ID INSTEAD OF NAME
 modules = list(data.module_id.unique())
 total_students = data.student_id.unique().size
@@ -80,7 +80,7 @@ for module in module_dict.keys():
 
 
 # -------------------------------------------------------------
-# Functions
+# Helper Functions
 def get_completed_percentage(df, module, state="completed"):
     """
     Returns the state percentage of module in df
@@ -106,66 +106,6 @@ def get_completed_percentage(df, module, state="completed"):
         / total_module_students
     )
     return percentage
-
-
-def module_completion_barplot(df):
-    """
-    Plots a horizontal barplot of student percentage module completion per module
-
-    Input:
-    -----------
-
-
-    Returns:
-    -----------
-
-    """
-    result = {}
-    modules = list(df.module_id.unique().astype(str))
-
-    for module in modules:
-        result[module_dict.get(module)] = [
-            round(get_completed_percentage(df, module, "unlocked") * 100, 1),
-            round(get_completed_percentage(df, module, "started") * 100, 1),
-            round(get_completed_percentage(df, module, "completed") * 100, 1),
-        ]
-
-    df_mod = (
-        pd.DataFrame(result, index=["unlocked", "started", "completed"])
-        .T.reset_index()
-        .rename(columns={"index": "Module"})
-    )
-
-    # Melt the DataFrame to convert columns to rows
-    melted_df = pd.melt(
-        df_mod,
-        id_vars="Module",
-        value_vars=["unlocked", "started", "completed"],
-        var_name="Status",
-        value_name="Percentage Completion",
-    )
-
-    # Create a horizontal bar chart using Plotly
-    fig_1 = px.bar(
-        melted_df,
-        y="Module",
-        x="Percentage Completion",
-        color="Status",
-        orientation="h",
-        labels={"Percentage Completion": "Percentage Completion (%)"},
-        title="Percentage Completion by Students for Each Module",
-        category_orders={"Module": sorted(melted_df["Module"].unique())},
-    )
-
-    # Modify the plotly configuration to change the background color
-    fig_1.update_layout(
-        plot_bgcolor="rgb(255, 255, 255)"  # Set the desired background color
-    )
-
-    # Convert the figure to a JSON serializable format
-    fig_1_json = fig_1.to_dict()
-
-    return fig_1_json
 
 
 def get_completed_percentage_date(df, module, date):
@@ -207,6 +147,84 @@ def get_completed_percentage_date(df, module, date):
     )
 
     return percentage
+
+
+# ------------------------------------------------------
+# Plotting Functions
+
+
+def module_completion_barplot(df):
+    """
+    Plots a horizontal barplot of student percentage module completion per module
+
+    Input:
+    -----------
+
+
+    Returns:
+    -----------
+
+    """
+    result = {}
+    modules = list(df.module_id.unique().astype(str))
+
+    for module in modules:
+        result[module_dict.get(module)] = [
+            round(get_completed_percentage(df, module, "unlocked") * 100, 1),
+            round(get_completed_percentage(df, module, "started") * 100, 1),
+            round(get_completed_percentage(df, module, "completed") * 100, 1),
+        ]
+
+    df_mod = (
+        pd.DataFrame(result, index=["unlocked", "started", "completed"])
+        .T.reset_index()
+        .rename(columns={"index": "Module"})
+    )
+
+    # Melt the DataFrame to convert columns to rows
+    melted_df = pd.melt(
+        df_mod,
+        id_vars="Module",
+        value_vars=["unlocked", "started", "completed"],
+        var_name="Status",
+        value_name="Percentage Completion",
+    )
+
+    # Define the color mapping
+    color_mapping = {
+        "unlocked": "#cafb9c",
+        "started": "#77bc34",
+        "completed": "#0d203e",
+    }
+
+    # Create a horizontal bar chart using Plotly
+    fig_1 = px.bar(
+        melted_df,
+        y="Module",
+        x="Percentage Completion",
+        color="Status",
+        orientation="h",
+        labels={"Percentage Completion": "Percentage Completion (%)"},
+        title="Percentage Completion by Students for Each Module",
+        category_orders={"Module": sorted(melted_df["Module"].unique())},
+        color_discrete_map=color_mapping,  # Set the color mapping
+    )
+
+    fig_1.update_layout(
+        showlegend=True,  # Show the legend indicating the module status colors
+        legend_title="Status",  # Customize the legend title,
+        legend_traceorder="reversed",  # Reverse the order of the legend items
+    )
+
+    # Modify the plotly configuration to change the background color
+    fig_1.update_layout(
+        plot_bgcolor="rgb(255, 255, 255)"  # Set the desired background color
+    )
+
+    # Convert the figure to a JSON serializable format
+    fig_1_json = fig_1.to_dict()
+
+    return fig_1_json
 
 
 def module_completion_lineplot(df):
@@ -425,8 +443,8 @@ module_options.extend([{"label": "All", "value": "All"}])
 
 
 @app.callback(
-    dash.dependencies.Output("plot1", "figure"),
-    [dash.dependencies.Input("module-dropdown", "value")],
+    Output("plot1", "figure"),
+    [Input("module-dropdown", "value")],
 )
 def update_module(val):
     subset_data = data.copy()
@@ -439,8 +457,8 @@ def update_module(val):
 
 
 @app.callback(
-    dash.dependencies.Output("plot3", "figure"),
-    [dash.dependencies.Input("module-dropdown", "value")],
+    Output("plot3", "figure"),
+    [Input("module-dropdown", "value")],
 )
 def update_items(val):
     subset_data = data.copy()
@@ -452,10 +470,14 @@ def update_items(val):
     return fig
 
 
+# Need to move this to Callback, Define the start and end dates
+start_date = "2019-06-20"
+end_date = "2019-07-20"
 # ----------------------------
 
 
-app.layout = html.Div(
+app.layout = dbc.Container(
+    fluid=True,
     children=[
         html.Div(
             children=[
@@ -465,6 +487,7 @@ app.layout = html.Div(
                         "color": "white",
                         "background-color": "black",
                         "padding": "5px",
+                        "text-align": "center",
                     },
                 ),
             ],
@@ -481,10 +504,15 @@ app.layout = html.Div(
                             style=tab_style,
                             selected_style=selected_tab_style,
                             children=[
-                                html.H1("About"),
-                                html.P(
-                                    """This is a Sample Dashboard created using Dash and Plotly in Python"""
-                                ),
+                                html.Div(
+                                    className="about-container",
+                                    children=[
+                                        html.H1("About"),
+                                        html.P(
+                                            """This Sample Dashboard is created using Dash and Plotly in Python. It provides an interactive visualization of student progression in different modules. The dashboard allows you to explore module details, view student progress through completion bar plots, and analyze overall module completion using a line plot. With an intuitive interface and visually appealing design, this dashboard offers a comprehensive overview of student progress and module completion. It is a powerful tool for educators and administrators to track and monitor student performance in an easy-to-understand manner."""
+                                        ),
+                                    ],
+                                )
                             ],
                         ),
                         dcc.Tab(
@@ -494,6 +522,7 @@ app.layout = html.Div(
                             selected_style=selected_tab_style,
                             children=[
                                 html.Div(
+                                    className="module-dropdown-container",
                                     children=[
                                         html.Label(
                                             "Select a module to view the student progression details ",
@@ -517,32 +546,52 @@ app.layout = html.Div(
                                     },
                                 ),
                                 html.Div(
+                                    className="plot-container",
                                     children=[
-                                        dcc.Graph(
-                                            id="plot1",
+                                        html.Div(
+                                            className="first-row",
+                                            children=[
+                                                dcc.Graph(
+                                                    id="plot1",
+                                                    style={
+                                                        "width": "100%",
+                                                        "height": "400px",
+                                                        "display": "inline-block",
+                                                        "border": "2px solid #ccc",
+                                                        "border-radius": "5px",
+                                                        "padding": "10px",
+                                                    },
+                                                ),
+                                            ],
                                             style={
-                                                "width": "50%",
-                                                "height": "500px",
-                                                "display": "inline-block",
-                                                "border": "2px solid #ccc",
-                                                "border-radius": "5px",
-                                                "padding": "10px",
+                                                "display": "flex",
+                                                "justify-content": "space-between",
                                             },
                                         ),
-                                        dcc.Graph(
-                                            id="plot3",
-                                            figure=item_completion_barplot(data),
+                                        html.Div(
+                                            className="second-row",
+                                            children=[
+                                                dcc.Graph(
+                                                    id="plot3",
+                                                    figure=item_completion_barplot(
+                                                        data
+                                                    ),
+                                                    style={
+                                                        "width": "100%",
+                                                        "height": "400px",
+                                                        "display": "inline-block",
+                                                        "border": "2px solid #ccc",
+                                                        "border-radius": "5px",
+                                                        "padding": "10px",
+                                                    },
+                                                ),
+                                            ],
                                             style={
-                                                "width": "50%",
-                                                "height": "500px",
-                                                "display": "inline-block",
-                                                "border": "2px solid #ccc",
-                                                "border-radius": "5px",
-                                                "padding": "10px",
+                                                "display": "flex",
+                                                "justify-content": "space-between",
                                             },
                                         ),
-                                        # dcc.Graph(id='ratio-graph', style={'width': '50%', 'display': 'inline-block'})
-                                    ]
+                                    ],
                                 ),
                             ],
                         ),
@@ -551,7 +600,15 @@ app.layout = html.Div(
                             style=tab_style,
                             selected_style=selected_tab_style,
                             children=[
-                                html.H1("Date  filters to be added"),
+                                html.H2("Select the Date Range"),
+                                dcc.RangeSlider(
+                                    id="date-slider",
+                                    min=0,
+                                    max=100,
+                                    step=1,
+                                    value=[0, 100],
+                                    marks={0: start_date, 100: end_date},
+                                ),
                                 dcc.Graph(
                                     id="plot2", figure=module_completion_lineplot(data)
                                 ),
@@ -566,57 +623,9 @@ app.layout = html.Div(
                 "fontSize": "16px",
             },
         ),
-    ]
+    ],
 )
 
-
-# app.layout = dbc.Container(
-#     [
-#         dbc.Row(
-#             [
-#                 dbc.Col(sidebar, width=3, className='bg-light'),
-#                 dbc.Col(content, width=9)
-#                 ]
-#             ),
-#         ],
-#     fluid=True
-#     )
-
-
-# app.layout = dbc.Container(
-#     fluid=True,
-#     children=[
-#         html.H1(
-#             "Module Progress Dashboard",
-#             className="display-4",
-#         ),
-#         dbc.Row(
-#             [
-#                 dbc.Col(
-#                     dcc.Graph(id="plot1", figure=module_completion_barplot(data)),
-#                     width={"size": 5, "offset": 1, "order": 1},
-#                     lg={"size": 5, "offset": 1, "order": 1},
-#                 ),
-#                 dbc.Col(
-#                     dcc.Graph(id="plot2", figure=module_completion_lineplot(data)),
-#                     width={"size": 5, "offset": 1, "order": 2},
-#                     lg={"size": 5, "offset": 1, "order": 1},
-#                 ),
-#             ],
-#             className="mt-4",
-#         ),
-#         dbc.Row(
-#             [
-#                 dbc.Col(
-#                     dcc.Graph(id="plot3", figure=item_completion_barplot(data)),
-#                     width={"size": 6, "offset": 3, "order": 1},
-#                     lg={"size": 8, "offset": 2, "order": 1},
-#                 )
-#             ],
-#             className="mt-4",
-#         ),
-#     ],
-# )
 
 if __name__ == "__main__":
     app.run_server(debug=True)
