@@ -2,6 +2,7 @@
 from dash import dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
 import dash
+from dash import dash_table
 from dash.dependencies import Input, Output, State
 import re
 
@@ -54,8 +55,9 @@ for col in categorical_cols:
 
 
 # -----------------------------------------------------------
-# Global variables
-# CHANGE TO MODULE ID INSTEAD OF NAME
+########################
+#  GLOBAL VARIABLES    #
+########################
 modules = list(data.module_id.unique())
 total_students = data.student_id.unique().size
 
@@ -80,7 +82,9 @@ for module in module_dict.keys():
 
 
 # -------------------------------------------------------------
-# Helper Functions
+########################
+#  HELPER FUNCTIONS    #
+########################
 def get_completed_percentage(df, module, state="completed"):
     """
     Returns the state percentage of module in df
@@ -150,7 +154,43 @@ def get_completed_percentage_date(df, module, date):
 
 
 # ------------------------------------------------------
-# Plotting Functions
+########################
+#  PLOT FUNCTIONS      #
+########################
+
+# Define shared style settings
+axis_label_font_size = 12
+
+
+def module_completion_table(df):
+    """
+    Returns datatable of student percentage module completion per module
+
+    Input:
+    -----------
+
+
+    Returns:
+    -----------
+
+    """
+    result = {}
+    modules = list(df.module_id.unique().astype(str))
+
+    for module in modules:
+        result[module_dict.get(module)] = [
+            round(get_completed_percentage(df, module, "unlocked") * 100, 1),
+            round(get_completed_percentage(df, module, "started") * 100, 1),
+            round(get_completed_percentage(df, module, "completed") * 100, 1),
+        ]
+
+    df_mod = (
+        pd.DataFrame(result, index=["unlocked", "started", "completed"])
+        .T.reset_index()
+        .rename(columns={"index": "Module"})
+    )
+
+    return df_mod
 
 
 def module_completion_barplot(df):
@@ -218,7 +258,9 @@ def module_completion_barplot(df):
 
     # Modify the plotly configuration to change the background color
     fig_1.update_layout(
-        plot_bgcolor="rgb(255, 255, 255)"  # Set the desired background color
+        plot_bgcolor="rgb(255, 255, 255)",
+        xaxis=dict(title_font=dict(size=axis_label_font_size)),
+        yaxis=dict(title_font=dict(size=axis_label_font_size)),
     )
 
     # Convert the figure to a JSON serializable format
@@ -227,7 +269,7 @@ def module_completion_barplot(df):
     return fig_1_json
 
 
-def module_completion_lineplot(df):
+def module_completion_lineplot(df, start_date, end_date):
     """
     Return a lineplot showing the percentage completion by data
     of each module
@@ -239,9 +281,16 @@ def module_completion_lineplot(df):
     Returns:
     --------
     """
-    # To build a dashboard lineplot with time on the x axis and the percentage completion on y axis
-    # for each module
+    # Convert the start_date and the end_date to datetime object if they are of type string
+    if isinstance(start_date, str):
+        start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    if isinstance(end_date, str):
+        end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
 
+    assert isinstance(start_date, datetime.date)
+    assert isinstance(end_date, datetime.date)
+
+    # For each module, create a lineplot with date on the x axis, percentage completion on y axis
     result_time = pd.DataFrame(columns=["Date", "Module", "Percentage Completion"])
 
     for module in module_dict.keys():
@@ -252,7 +301,11 @@ def module_completion_lineplot(df):
             x for x in timestamps if type(x) != pd._libs.tslibs.nattype.NaTType
         ]
 
-        for date in timestamps:
+        filtered_timestamps = [
+            timestamp for timestamp in timestamps if start_date <= timestamp <= end_date
+        ]
+
+        for date in filtered_timestamps:
             value = round(get_completed_percentage_date(df, module, date) * 100, 1)
 
             new_df = pd.DataFrame(
@@ -289,13 +342,18 @@ def module_completion_lineplot(df):
 
     fig_2.update_layout(
         title="Percentage Completion by Module",
-        xaxis=dict(title="Date"),
-        yaxis=dict(title="Percentage"),
+        xaxis=dict(
+            title="Date", tickangle=-90, title_font=dict(size=axis_label_font_size)
+        ),
+        yaxis=dict(title="Percentage", title_font=dict(size=axis_label_font_size)),
+        plot_bgcolor="rgba(240, 240, 240, 0.8)",  # Light gray background color
+        xaxis_gridcolor="rgba(200, 200, 200, 0.2)",  # Faint gridlines
+        yaxis_gridcolor="rgba(200, 200, 200, 0.2)",  # Faint gridlines
+        margin=dict(l=50, r=50, t=50, b=50),  # Add margin for a border line
+        paper_bgcolor="white",  # Set the background color of the entire plot
     )
 
     # Set custom start and end dates for the x-axis
-    start_date = "2019-06-20"
-    end_date = "2019-07-20"
     fig_2.update_xaxes(range=[start_date, end_date])
 
     # Specify custom spacing between dates on the x-axis
@@ -368,11 +426,15 @@ def item_completion_barplot(df):
 
     # Create subplots with one subplot per module
     fig_3 = make_subplots(
-        rows=len(grouped_df), cols=1, shared_xaxes=True, vertical_spacing=0.01
+        rows=1,
+        cols=len(grouped_df),
+        shared_yaxes=True,
+        horizontal_spacing=0.01,
+        subplot_titles=list(grouped_df.groups.keys()),
     )
 
     # Define custom colors for the bars
-    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+    colors = ["#0055B7", "#00A7E1", "#40B4E5", "#6EC4E8", "#97D4E9"]
 
     # Iterate over each module group
     for i, (module, group) in enumerate(grouped_df):
@@ -383,24 +445,26 @@ def item_completion_barplot(df):
         # Create a horizontal bar chart for the module
         fig_3.add_trace(
             go.Bar(
-                y=group["Item"][::-1],
-                x=group["Item Percentage Completion"][::-1],
-                orientation="h",
+                x=group["Item"],
+                y=group["Item Percentage Completion"],
+                orientation="v",
                 name=module,
-                marker=dict(opacity=0.8),
+                marker=dict(color=colors[i % len(colors)], opacity=0.8),
                 text=[],
-                hovertemplate="Item Title: %{y}<br>Completion:%{x}%<extra></extra>",
+                hovertemplate="Item Title: %{x}<br>Completion: %{y}%<extra></extra>",
             ),
-            row=i + 1,
-            col=1,
+            row=1,
+            col=i + 1,
         )
 
     # Update the layout of the figure
     fig_3.update_layout(
-        height=300 * len(grouped_df),
+        height=400,
         title="Percentage Completion by Item for Each Module",
-        xaxis_title="Percentage Completion",
-        yaxis_title="Item",
+        xaxis=dict(title="Items", title_font=dict(size=axis_label_font_size)),
+        yaxis=dict(
+            title="Percentage Completion", title_font=dict(size=axis_label_font_size)
+        ),
     )
 
     # Convert the figure to a JSON serializable format
@@ -410,7 +474,9 @@ def item_completion_barplot(df):
 
 
 # -----------------------------------------------------------------------
-# Define the layout of the dashboard
+########################
+#  STYLE LAYOUT        #
+########################
 
 
 # Define the style for the tabs
@@ -423,10 +489,36 @@ tab_style = {
 selected_tab_style = {
     "height": "30px",
     "padding": "3px",
-    "borderTop": "2px solid #f5f5f5",
-    "borderBottom": "2px solid #f5f5f5",
-    "backgroundColor": "#119DFF",
+    "borderTop": "2px solid #13233e",
+    "borderBottom": "2px solid #13233e",
+    "backgroundColor": "#13233e",
     "color": "white",
+}
+
+# Define header style
+heading_style = {
+    "borderTop": "2px solid #aab4c2",
+    "borderBottom": "2px solid #aab4c2",
+    "backgroundColor": "#aab4c2",
+    "color": "white",
+    "padding": "5px",
+    "text-align": "center",
+}
+
+# Define Tab text style
+text_style = {
+    "font-size": "16px",
+    "font-weight": "bold",
+    "color": "#13233e",
+    "padding": "5px",
+}
+
+
+# Style Html Div
+div_style = {
+    "display": "flex",
+    "justify-content": "center",
+    "align-items": "center",
 }
 
 # dropdpown options
@@ -439,7 +531,9 @@ module_options.extend([{"label": "All", "value": "All"}])
 
 
 # ----------------------------
-# Define callbacks
+########################
+#  FUNCTION CALLBACKS  #
+########################
 
 
 @app.callback(
@@ -470,11 +564,23 @@ def update_items(val):
     return fig
 
 
-# Need to move this to Callback, Define the start and end dates
-start_date = "2019-06-20"
-end_date = "2019-07-20"
-# ----------------------------
+@app.callback(
+    Output("plot2", "figure"),
+    Input("date-slider", "start_date"),
+    Input("date-slider", "end_date"),
+)
+def update_lineplot(start_date, end_date):
+    subset_data = data.copy()
 
+    assert isinstance(start_date, str)
+
+    fig = module_completion_lineplot(subset_data, start_date, end_date)
+
+    fig["layout"]["xaxis"]["autorange"] = True  # Set x-axis to autoscale
+    return fig
+
+
+# ----------------------------
 
 app.layout = dbc.Container(
     fluid=True,
@@ -483,12 +589,7 @@ app.layout = dbc.Container(
             children=[
                 html.H2(
                     "Module Progress Demo Dashboard",
-                    style={
-                        "color": "white",
-                        "background-color": "black",
-                        "padding": "5px",
-                        "text-align": "center",
-                    },
+                    style=heading_style,
                 ),
             ],
             style={"padding": "0.05px"},
@@ -550,11 +651,12 @@ app.layout = dbc.Container(
                                     children=[
                                         html.Div(
                                             className="first-row",
+                                            style=div_style,
                                             children=[
                                                 dcc.Graph(
                                                     id="plot1",
                                                     style={
-                                                        "width": "100%",
+                                                        "width": "50%",
                                                         "height": "400px",
                                                         "display": "inline-block",
                                                         "border": "2px solid #ccc",
@@ -562,20 +664,44 @@ app.layout = dbc.Container(
                                                         "padding": "10px",
                                                     },
                                                 ),
+                                                dash_table.DataTable(
+                                                    data=module_completion_table(
+                                                        data
+                                                    ).to_dict(
+                                                        "records"
+                                                    ),  # Convert DataFrame to dictionary format
+                                                    columns=[
+                                                        {"name": col, "id": col}
+                                                        for col in module_completion_table(
+                                                            data
+                                                        ).columns
+                                                    ],  # Define column names
+                                                    style_table={
+                                                        "width": "50%",  # Set the table width to 80% of the parent container
+                                                        "border": "1px solid #ccc",
+                                                        "border-radius": "5px",
+                                                    },
+                                                    style_header={
+                                                        "backgroundColor": "lightgray",
+                                                        "fontWeight": "bold",
+                                                        "border": "1px solid #ccc",
+                                                    },
+                                                    style_cell={
+                                                        "textAlign": "center",
+                                                        "border": "1px solid #ccc",
+                                                    },
+                                                ),
                                             ],
-                                            style={
-                                                "display": "flex",
-                                                "justify-content": "space-between",
-                                            },
+                                            # style={
+                                            #     "display": "flex",
+                                            #     "justify-content": "space-between",
+                                            # },
                                         ),
                                         html.Div(
                                             className="second-row",
                                             children=[
                                                 dcc.Graph(
                                                     id="plot3",
-                                                    figure=item_completion_barplot(
-                                                        data
-                                                    ),
                                                     style={
                                                         "width": "100%",
                                                         "height": "400px",
@@ -600,17 +726,33 @@ app.layout = dbc.Container(
                             style=tab_style,
                             selected_style=selected_tab_style,
                             children=[
-                                html.H2("Select the Date Range"),
-                                dcc.RangeSlider(
+                                html.H3("Select the Date Range", style=text_style),
+                                dcc.DatePickerRange(
                                     id="date-slider",
-                                    min=0,
-                                    max=100,
-                                    step=1,
-                                    value=[0, 100],
-                                    marks={0: start_date, 100: end_date},
+                                    min_date_allowed=min(
+                                        pd.to_datetime(data["completed_at"])
+                                    ).date(),
+                                    max_date_allowed=max(
+                                        pd.to_datetime(data["completed_at"])
+                                    ).date(),
+                                    start_date=min(
+                                        pd.to_datetime(data["completed_at"])
+                                    ).date(),
+                                    end_date=max(
+                                        pd.to_datetime(data["completed_at"])
+                                    ).date(),
+                                    clearable=True,
                                 ),
                                 dcc.Graph(
-                                    id="plot2", figure=module_completion_lineplot(data)
+                                    id="plot2",
+                                    style={
+                                        "width": "100%",
+                                        "height": "400px",
+                                        "display": "inline-block",
+                                        "border": "2px solid #ccc",
+                                        "border-radius": "5px",
+                                        "padding": "10px",
+                                    },
                                 ),
                             ],
                         ),
