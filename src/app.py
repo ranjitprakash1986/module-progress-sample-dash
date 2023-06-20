@@ -161,6 +161,10 @@ def get_completed_percentage_date(df, module, date):
 # Define shared style settings
 axis_label_font_size = 12
 
+# Colors
+# Define custom colors for the bars
+colors = ["#823551", "#1E88E5", "#FFC107", "#5C5934", "#DA981D", "#4F6793"]
+
 
 def module_completion_table(df):
     """
@@ -317,7 +321,7 @@ def module_completion_lineplot(df, start_date, end_date):
 
     # Plotting
     fig_2 = go.Figure()
-    for module, group in result_time.groupby("Module"):
+    for i, (module, group) in enumerate(result_time.groupby("Module")):
         sorted_group = group.sort_values("Date")
 
         if len(sorted_group) == 1:
@@ -327,6 +331,7 @@ def module_completion_lineplot(df, start_date, end_date):
                     y=sorted_group["Percentage Completion"],
                     mode="markers",
                     name=module,
+                    marker=dict(color=colors[i % len(colors)]),
                 )
             )
 
@@ -337,6 +342,7 @@ def module_completion_lineplot(df, start_date, end_date):
                     y=sorted_group["Percentage Completion"],
                     mode="lines",
                     name=module,
+                    line=dict(color=colors[i % len(colors)]),
                 )
             )
 
@@ -432,9 +438,6 @@ def item_completion_barplot(df):
         horizontal_spacing=0.01,
         subplot_titles=list(grouped_df.groups.keys()),
     )
-
-    # Define custom colors for the bars
-    colors = ["#0055B7", "#00A7E1", "#40B4E5", "#6EC4E8", "#97D4E9"]
 
     # Iterate over each module group
     for i, (module, group) in enumerate(grouped_df):
