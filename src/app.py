@@ -28,7 +28,7 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 # ---------------------------------------------------
 # reading the data
-data = pd.read_csv("../data/SAMPLE_module_data.csv")
+data = pd.read_csv("data/module_data.csv")
 
 # dtype conversion
 categorical_cols = [
@@ -180,16 +180,15 @@ def module_completion_table(df):
     """
     result = {}
     modules = list(df.module_id.unique().astype(str))
+    status = list(df.state.unique().astype(str))
 
     for module in modules:
         result[module_dict.get(module)] = [
-            round(get_completed_percentage(df, module, "unlocked") * 100, 1),
-            round(get_completed_percentage(df, module, "started") * 100, 1),
-            round(get_completed_percentage(df, module, "completed") * 100, 1),
+            round(get_completed_percentage(df, module, s) * 100, 1) for s in status
         ]
 
     df_mod = (
-        pd.DataFrame(result, index=["unlocked", "started", "completed"])
+        pd.DataFrame(result, index=["locked", "unlocked", "started", "completed"])
         .T.reset_index()
         .rename(columns={"index": "Module"})
     )
@@ -211,16 +210,15 @@ def module_completion_barplot(df):
     """
     result = {}
     modules = list(df.module_id.unique().astype(str))
+    status = list(df.state.unique().astype(str))
 
     for module in modules:
         result[module_dict.get(module)] = [
-            round(get_completed_percentage(df, module, "unlocked") * 100, 1),
-            round(get_completed_percentage(df, module, "started") * 100, 1),
-            round(get_completed_percentage(df, module, "completed") * 100, 1),
+            round(get_completed_percentage(df, module, s) * 100, 1) for s in status
         ]
 
     df_mod = (
-        pd.DataFrame(result, index=["unlocked", "started", "completed"])
+        pd.DataFrame(result, index=["locked", "unlocked", "started", "completed"])
         .T.reset_index()
         .rename(columns={"index": "Module"})
     )
@@ -229,16 +227,17 @@ def module_completion_barplot(df):
     melted_df = pd.melt(
         df_mod,
         id_vars="Module",
-        value_vars=["unlocked", "started", "completed"],
+        value_vars=["locked", "unlocked", "started", "completed"],
         var_name="Status",
         value_name="Percentage Completion",
     )
 
     # Define the color mapping
     color_mapping = {
-        "unlocked": "#cafb9c",
-        "started": "#77bc34",
-        "completed": "#0d203e",
+        "locked": "#F0E442",
+        "unlocked": "#E69F00",
+        "started": "#009E73",
+        "completed": "#56B4E9",
     }
 
     # Create a horizontal bar chart using Plotly
@@ -257,7 +256,7 @@ def module_completion_barplot(df):
     fig_1.update_layout(
         showlegend=True,  # Show the legend indicating the module status colors
         legend_title="Status",  # Customize the legend title,
-        legend_traceorder="reversed",  # Reverse the order of the legend items
+        # legend_traceorder="reversed",  # Reverse the order of the legend items
     )
 
     # Modify the plotly configuration to change the background color
@@ -374,7 +373,7 @@ def module_completion_lineplot(df, start_date, end_date):
 
 def item_completion_barplot(df):
     """
-    Return a horizontal barplot showing the percentage completion
+    Return a vertical barplot showing the percentage completion
     of each item under each module
 
     Inputs:
@@ -586,7 +585,7 @@ def update_lineplot(start_date, end_date):
 # ----------------------------
 
 app.layout = dbc.Container(
-    fluid=True,
+    fluid=False,
     children=[
         html.Div(
             children=[
@@ -659,41 +658,42 @@ app.layout = dbc.Container(
                                                 dcc.Graph(
                                                     id="plot1",
                                                     style={
-                                                        "width": "50%",
-                                                        "height": "400px",
+                                                        "width": "100%",
+                                                        "height": "100%",
                                                         "display": "inline-block",
                                                         "border": "2px solid #ccc",
                                                         "border-radius": "5px",
                                                         "padding": "10px",
                                                     },
                                                 ),
-                                                dash_table.DataTable(
-                                                    data=module_completion_table(
-                                                        data
-                                                    ).to_dict(
-                                                        "records"
-                                                    ),  # Convert DataFrame to dictionary format
-                                                    columns=[
-                                                        {"name": col, "id": col}
-                                                        for col in module_completion_table(
-                                                            data
-                                                        ).columns
-                                                    ],  # Define column names
-                                                    style_table={
-                                                        "width": "50%",  # Set the table width to 80% of the parent container
-                                                        "border": "1px solid #ccc",
-                                                        "border-radius": "5px",
-                                                    },
-                                                    style_header={
-                                                        "backgroundColor": "lightgray",
-                                                        "fontWeight": "bold",
-                                                        "border": "1px solid #ccc",
-                                                    },
-                                                    style_cell={
-                                                        "textAlign": "center",
-                                                        "border": "1px solid #ccc",
-                                                    },
-                                                ),
+                                                # dash_table.DataTable(
+                                                #     data=module_completion_table(
+                                                #         data
+                                                #     ).to_dict(
+                                                #         "records"
+                                                #     ),  # Convert DataFrame to dictionary format
+                                                #     columns=[
+                                                #         {"name": col, "id": col}
+                                                #         for col in module_completion_table(
+                                                #             data
+                                                #         ).columns
+                                                #     ],  # Define column names
+                                                #     style_table={
+                                                #         "width": "50%",  # Set the table width to 80% of the parent container
+                                                #         "height": "50%",
+                                                #         "border": "1px solid #ccc",
+                                                #         "border-radius": "5px",
+                                                #     },
+                                                #     style_header={
+                                                #         "backgroundColor": "lightgray",
+                                                #         "fontWeight": "bold",
+                                                #         "border": "1px solid #ccc",
+                                                #     },
+                                                #     style_cell={
+                                                #         "textAlign": "center",
+                                                #         "border": "1px solid #ccc",
+                                                #     },
+                                                # ),
                                             ],
                                             # style={
                                             #     "display": "flex",
